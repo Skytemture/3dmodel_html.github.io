@@ -1,0 +1,316 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>模型測試</title>
+  <style>
+    body {
+      margin: 0px auto;
+      overflow: hidden;
+      text-align: center;
+    }
+    #canvas {
+    position: relative;
+    --model-scale: 5; /* 預設模型大小縮放比例 */
+    box-sizing: border-box; /* 設定邊框寬度不影響元素寬度 */
+    border: 10px, #111;
+    display: flex;
+    justify-content: center; /* 將對齊方式設為靠左 */
+    align-items: center;
+    position: relative;
+  }
+  </style>
+</head>
+<body>
+  <div id="canvas"></div>
+  <script src="https://threejs.org/build/three.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three/examples/js/loaders/GLTFLoader.js"></script>
+
+  <script>
+    // Renderer Setup
+    var renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.getElementById("canvas").appendChild(renderer.domElement);
+  
+    // Scene Setup
+    var scene = new THREE.Scene();
+  
+    // Camera Setup
+    var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 500);
+    camera.position.z = 5;
+    camera.position.y = 0;
+  
+    // Lights Setup
+    var light = new THREE.DirectionalLight(0xefefff, 3);
+    light.position.set(1, 1, 1).normalize();
+    scene.add(light);
+    var light = new THREE.DirectionalLight(0xffefef, 3);
+    light.position.set(-1, -1, -1).normalize();
+    scene.add(light);
+  
+    // Resize Handling
+    function handleResize() {
+      let width = window.innerWidth;
+      let height = window.innerHeight;
+      renderer.setSize(width, height);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    }
+  
+    window.addEventListener("resize", handleResize);
+  
+    // Model Loading
+    var loader = new THREE.GLTFLoader();
+    var mixer;
+    var model;
+  
+    loader.load(
+      "https://skytemture.github.io/3d1_glb.github.io/3d2.glb",
+      function (gltf) {
+        gltf.scene.traverse(function (node) {
+          if (node instanceof THREE.Mesh) {
+            node.castShadow = true;
+            node.material.side = THREE.DoubleSide;
+          }
+        });
+  
+        model = gltf.scene;
+        scene.add(model);
+  
+        // 调整模型中心点位置
+        model.position.set(1, 0, 0); // 设置模型的位置坐标
+  
+        // Get the bounding box information of the model
+        var boundingBox = new THREE.Box3().setFromObject(model);
+        var center = new THREE.Vector3();
+        boundingBox.getCenter(center);
+  
+        // Calculate the scale factor from CSS custom property
+        var scaleFactor = parseFloat(getComputedStyle(document.getElementById("canvas")).getPropertyValue("--model-scale"));
+        model.scale.set(scaleFactor, scaleFactor, scaleFactor);
+      }
+    );
+  
+    // Mouse/Touch Interaction
+    var isDragging = false;
+    var previousMousePosition = {
+      x: 0,
+      y: 0
+    };
+    var shouldRotate = true; // 追踪是否需要旋转
+  
+    function handleMouseDown(event) {
+      isDragging = true;
+      previousMousePosition = {
+        x: event.clientX,
+        y: event.clientY
+      };
+    }
+  
+    function handleMouseMove(event) {
+      if (!isDragging) {
+        return;
+      }
+  
+      var deltaX = event.clientX - previousMousePosition.x;
+      var deltaY = event.clientY - previousMousePosition.y;
+  
+      if (model) {
+        model.rotation.y += deltaX * 0.01;
+        model.rotation.x += deltaY * 0.01;
+      }
+  
+      previousMousePosition = {
+        x: event.clientX,
+        y: event.clientY
+      };
+    }
+  
+    function handleMouseUp(event) {
+      isDragging = false;
+    }
+  
+    renderer.domElement.addEventListener("mousedown", handleMouseDown);
+    renderer.domElement.addEventListener("mousemove", handleMouseMove);
+    renderer.domElement.addEventListener("mouseup", handleMouseUp);
+    renderer.domElement.addEventListener("mouseleave", handleMouseUp);
+  
+    // Animation
+    var clock = new THREE.Clock();
+    function render() {
+      requestAnimationFrame(render);
+      var delta = clock.getDelta();
+      if (mixer != null) mixer.update(delta);
+  
+      // Only perform auto-rotation when the mouse is not pressed and not dragging
+      if (!isDragging && shouldRotate && model) {
+        model.rotation.y += 0.01; // 调整旋转角度
+      }
+  
+      renderer.render(scene, camera);
+    }
+    
+    function delay(n){
+    return new Promise(function(resolve){
+        setTimeout(resolve,n*1000);
+    });
+    }
+    // Smooth Sequential Movement
+    var scrollPosition = 0;
+    var moveAmount = 30; 
+    var movelittle = 0.1;
+    var stepcounter = 0;
+    
+    let isModelMoving = false;
+    let currentPosition = 0;
+
+  async function handleScroll(event) {
+  if (isModelMoving) {
+    return;
+  }
+
+  scrollPosition += event.deltaY;
+
+  if (Math.abs(scrollPosition) >= moveAmount) {
+    scrollPosition = 0;
+    if(event.deltaY >0){
+    // 滾軸往下的動作
+    switch (currentPosition) {
+      case 0: // Move left or right
+        if (model) {
+          isModelMoving = true;
+          while (stepcounter < moveAmount) {
+            model.position.x -= movelittle * Math.sign(event.deltaY);
+            stepcounter++;
+            await delay(0.001);
+            console.log("正向動作，位置:1");
+          }
+          stepcounter = 0;
+          currentPosition = 1;
+          isModelMoving = false;
+        }
+        break;
+      case 1: // Move down or up
+        if (model) {
+          isModelMoving = true;
+          while (stepcounter < moveAmount) {
+            model.position.y -= movelittle * Math.sign(event.deltaY);
+            stepcounter++;
+            await delay(0.001);
+            console.log("正向動作，位置:2");
+          }
+          stepcounter = 0;
+          currentPosition = 2;
+          isModelMoving = false;
+          
+        }
+        break;
+      case 2: // Move right or left
+        if (model) {
+          isModelMoving = true;
+          while (stepcounter < moveAmount) {
+            model.position.x += movelittle * Math.sign(event.deltaY);
+            stepcounter++;
+            await delay(0.001);
+            console.log("正向動作，位置:3");
+          }
+          stepcounter = 0;
+          currentPosition = 3;
+          isModelMoving = false;
+        }
+        break;
+        case 3: // Move up
+        if (model) {
+          isModelMoving = true;
+          while (stepcounter < moveAmount) {
+            model.position.y += movelittle * Math.sign(event.deltaY);
+            stepcounter++;
+            await delay(0.001);
+            console.log("正向動作，位置:4");
+          }
+          stepcounter = 0;
+          currentPosition = 4;
+          isModelMoving = false;
+        }
+        break;
+    } }
+    //滾軸往上的動作
+    else if (event.deltaY <0){
+      switch (currentPosition) {
+      case 1: 
+        if (model) {
+          isModelMoving = true;
+          while (stepcounter < moveAmount) {
+            model.position.x -= movelittle * Math.sign(event.deltaY);
+            stepcounter++;
+            await delay(0.001);
+            console.log("反向動作，位置:4");
+          }
+          stepcounter = 0;
+          currentPosition = 0;
+          isModelMoving = false;
+        }
+        break;
+      case 2: 
+      if (model) {
+          isModelMoving = true;
+          while (stepcounter < moveAmount) {
+            model.position.y -= movelittle * Math.sign(event.deltaY);
+            stepcounter++;
+            await delay(0.001);
+            console.log("反向動作，位置:1");
+          }
+          stepcounter = 0;
+          currentPosition = 1;
+          isModelMoving = false;
+        }
+        break;
+      case 3: 
+        if (model) {
+          isModelMoving = true;
+          while (stepcounter < moveAmount) {
+            model.position.x += movelittle * Math.sign(event.deltaY);
+            stepcounter++;
+            await delay(0.001);
+            console.log("反向動作，位置:2");
+          }
+          stepcounter = 0;
+          currentPosition = 2;
+          isModelMoving = false;
+        }
+        break;
+      case 4: 
+        if (model) {
+          isModelMoving = true;
+          while (stepcounter < moveAmount) {
+            model.position.y += movelittle * Math.sign(event.deltaY);
+            stepcounter++;
+            await delay(0.001);
+            console.log("反向動作，位置:3");
+          }
+          stepcounter = 0;
+          currentPosition = 3;
+          isModelMoving = false;
+        }
+        break;
+    }
+    }
+    
+   if(currentPosition == 4){
+    currentPosition = 4;
+   }
+   else if(currentPosition == 0){
+    currentPosition = 0;
+   }
+  }
+}
+  
+    // Add scroll event listener
+    window.addEventListener("wheel", handleScroll);
+  
+    render();
+  
+  </script>
+
+</body>
+</html>
